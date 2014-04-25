@@ -11,12 +11,28 @@
 (def height 40)
 (def width 40)
 (def size 10)
+(def plank 100)
 
 (def keycodes {37 :left 38 :up 39 :right 40 :down})
 
-(def app-state (atom {:food #{[20 20]}
-                      :snake [[10 20]]
+(def app-state (atom {:food nil
+                      :snake []
                       :direction :up}))
+
+(defn random-place-not-in [forbidden]
+  (first (drop-while (fn [place] (some #{place} forbidden))
+                     (repeatedly (fn [] [(rand-int width)
+                                         (rand-int height)])))))
+
+(defn do-place-food [{:keys [snake] :as state}]
+  (om/update! state [:food] (random-place-not-in snake)))
+
+(defn do-init-game [state]
+  (let [snake (random-place-not-in [])
+        food  (random-place-not-in [snake])]
+    (om/update! state [:food] food)
+    (om/update! state [:snake] [snake])))
+
 
 (defn listen [el type]
   (let [out (chan)]
@@ -27,49 +43,56 @@
   (for [[x y] cells]
     [:rect {:x (* x size) :y (* y size) :height size :width size :class type}]))
 
-(defn world [{:keys [food snake]} owner]
+(defn world [{:keys [food snake]} _]
   (reify
     om/IRender
     (render [this]
       (html
         [:svg {:width (* width size) :height (* width size)}
-         (render-cells food "food")
+         (render-cells [food] "food")
          (render-cells snake "snake")]))))
 
-(defn next-head [[[x y]] direction]
+(defn one-step [[x y] direction]
   (condp = direction
-    :left  [[(dec x) y]]
-    :up    [[x (dec y)]]
-    :right [[(inc x) y]]
-    :down  [[x (inc y)]]))
+    :left  [(dec x) y]
+    :up    [x (dec y)]
+    :right [(inc x) y]
+    :down  [x (inc y)]))
 
-(defn move [{:keys [snake direction] :as app}]
-  (update-in app [:snake] next-head direction))
+(defn next-head [head direction]
+  (let [[x y] (one-step head direction)]
+    [(mod x width) (mod y height)]))
 
-(defn root [app owner]
+(defn next-snake [[head & tail] direction]
+  (into [(next-head head direction)] (butlast tail)))
+
+(defn do-move [{:keys [direction] :as state}]
+  (update-in state [:snake] next-snake direction))
+
+(defn root [state _]
   (reify
-    om/IDidMount
-    (did-mount [this]
+    om/IWillMount
+    (will-mount [_]
       (let [keyboard-channel (listen js/window "keydown")]
-        (go (loop [step-channel (timeout 200)]
+        (do-init-game state)
+        (go (loop [step-channel (timeout plank)]
               (alt!
                 keyboard-channel ([e c]
                                     (when-let [direction (keycodes (.-keyCode e))]
-                                      (om/update! app [:direction] direction))
-                                    (recur (timeout 200)))
+                                      (om/update! state [:direction] direction))
+                                    (recur (timeout plank)))
                 step-channel ([e c]
-                                    (om/transact! app move)
-                                    (recur (timeout 200))))))))
+                                    (om/transact! state do-move)
+                                    (recur (timeout plank))))))))
 
     om/IRender
-    (render [this]
+    (render [_]
       (html [:div
              [:h1 "Welcome to Snake !!"]
              [:div
-              (str "Total food: " (count (:food app))
-                   " Snake length: " (count (:snake app))
-                   " Direction: " (:direction app))]
-             (om/build world app)]))))
+              (str "Snake length: " (count (:snake state))
+                   " Direction: " (:direction state))]
+             (om/build world state)]))))
 
 (om/root
   root
