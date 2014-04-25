@@ -1,7 +1,8 @@
 (ns om-snake.core
-  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:require-macros [cljs.core.async.macros :refer [go alt!]])
   (:require [goog.events :as events]
-            [cljs.core.async :as async :refer [>! <! put! chan]][om.core :as om :include-macros true]
+            [cljs.core.async :as async :refer [>! <! put! chan timeout]]
+            [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             [sablono.core :as html :refer-macros [html]]))
 
@@ -22,8 +23,6 @@
     (events/listen el type #(put! out %))
     out))
 
-
-
 (defn render-cells [cells type]
   (for [[x y] cells]
     [:rect {:x (* x size) :y (* y size) :height size :width size :class type}]))
@@ -37,26 +36,30 @@
          (render-cells food "food")
          (render-cells snake "snake")]))))
 
-(defn step [[[x y]] direction]
+(defn next-head [[[x y]] direction]
   (condp = direction
     :left  [[(dec x) y]]
     :up    [[x (dec y)]]
     :right [[(inc x) y]]
     :down  [[x (inc y)]]))
 
-(defn move [direction app]
-  (-> app
-      (assoc :direction direction)
-      (update-in [:snake] step direction)))
+(defn move [{:keys [snake direction] :as app}]
+  (update-in app [:snake] next-head direction))
 
 (defn root [app owner]
   (reify
     om/IDidMount
     (did-mount [this]
       (let [keyboard-channel (listen js/window "keydown")]
-        (go (while true
-              (when-let [direction (keycodes (.-keyCode (<! keyboard-channel)))]
-                (om/transact! app (partial move direction)))))))
+        (go (loop [step-channel (timeout 200)]
+              (alt!
+                keyboard-channel ([e c]
+                                    (when-let [direction (keycodes (.-keyCode e))]
+                                      (om/update! app [:direction] direction))
+                                    (recur (timeout 200)))
+                step-channel ([e c]
+                                    (om/transact! app move)
+                                    (recur (timeout 200))))))))
 
     om/IRender
     (render [this]
@@ -65,7 +68,7 @@
              [:div
               (str "Total food: " (count (:food app))
                    " Snake length: " (count (:snake app))
-                   " Direction" (:direction app))]
+                   " Direction: " (:direction app))]
              (om/build world app)]))))
 
 (om/root
