@@ -1,6 +1,6 @@
 (defproject om-snake "0.1.0-SNAPSHOT"
-  :description "FIXME: write this!"
-  :url "http://example.com/FIXME"
+  :description "The game of Snake built with om."
+  :url "http://github.com/jmgimeno/om-snake"
 
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/clojurescript "0.0-2202"]
