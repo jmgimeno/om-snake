@@ -31,16 +31,7 @@
      :dead      false
      :direction (rand-nth (vals keycode->direction))}))
 
-(def app-state (atom (init-game)))
-
-(defn listen [el type]
-  (let [out (chan)]
-    (events/listen el type #(put! out %))
-    out))
-
-(defn render-cells [cells type]
-  (for [[x y] cells]
-    [:rect {:x (* x size) :y (* y size) :height size :width size :class type}]))
+; Game dynamics
 
 (defn one-step [[x y] direction]
   (condp = direction
@@ -69,6 +60,19 @@
       (= food new-head)        (grow-snake state new-head)
       (some #{new-head} snake) (kill-snake state)
       :else                    (move-snake state new-head))))
+
+; Interaction
+
+(def app-state (atom (init-game)))
+
+(defn listen [el type]
+  (let [out (chan)]
+    (events/listen el type #(put! out %))
+    out))
+
+(defn render-cells [cells type]
+  (for [[x y] cells]
+    [:rect {:x (* x size) :y (* y size) :height size :width size :class type}]))
 
 (defn world [{:keys [food snake dead]} _]
   (reify
