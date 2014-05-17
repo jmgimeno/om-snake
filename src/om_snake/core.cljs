@@ -3,15 +3,14 @@
   (:require [goog.events :as events]
             [cljs.core.async :as async :refer [>! <! put! chan timeout]]
             [om.core :as om :include-macros true]
-            [om.dom :as dom :include-macros true]
-            [sablono.core :as html :refer-macros [html]]))
+            [om.dom :as dom :include-macros true]))
 
 (enable-console-print!)
 
 (def width     20)
 (def height    15)
 (def size      10)
-(def plank    150)
+(def plank    100)
 
 (def keycode->direction {37 :left 38 :up 39 :right 40 :down})
 
@@ -70,18 +69,22 @@
     (events/listen el type #(put! out %))
     out))
 
-(defn render-cells [cells type]
-  (for [[x y] cells]
-    [:rect {:x (* x size) :y (* y size) :height size :width size :class type}]))
+(defn cell [[[x y] type] _]
+  (reify
+    om/IRender
+    (render [_]
+      (dom/rect #js {:x (* x size) :y (* y size) :height size :width size :className type}))))
 
 (defn world [{:keys [food snake dead]} _]
   (reify
     om/IRender
     (render [_]
-      (html
-        [:svg {:width (* width size) :height (* height size)}
-         (render-cells [food] "food")
-         (render-cells snake (if dead "dead" "alive"))]))))
+      (let [foodcell   [food "food"]
+            snakestyle (if dead "dead" "alive")
+            snakecells (map #(vector % snakestyle) snake)
+            allcells   (cons foodcell snakecells)]
+        (apply dom/svg #js {:width (* width size) :height (* height size)}
+          (om/build-all cell allcells))))))
 
 (defn root [state _]
   (reify
@@ -101,13 +104,11 @@
 
     om/IRender
     (render [_]
-      (html [:div
-             [:h1 "Welcome to Snake !!"]
-             [:div
-              (str "Snake length: "
-                   (count (:snake state))
-                   (when (:dead state) " ENDGAME !!"))]
-             (om/build world state)]))))
+      (dom/div nil
+               (dom/h1 nil "Welcome to Snake !!")
+               (dom/p nil (str "Snake length: " (count (:snake state))
+                                  (when (:dead state) " ENDGAME !!")))
+               (om/build world state)))))
 
 (om/root
   root
