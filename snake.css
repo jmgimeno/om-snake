@@ -1,0 +1,17 @@
+svg {
+    border-style: solid;
+    border-width: medium;
+    border-color: black;
+}
+
+.food {
+    fill: blue;
+}
+
+.alive {
+    fill: green;
+}
+
+.dead {
+    fill: red;
+}
